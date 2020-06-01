@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/patrickmn/go-hmaccrypt"
 	"net/url"
+	_ "log"
 )
 
 type BCryptPassword struct {
@@ -92,6 +93,6 @@ func (p *BCryptPassword) Compare(pswd string) error {
 	return p.crypt.BcryptCompare([]byte(p.digest), []byte(pswd))
 }
 
-func (p *BCryptPassword) URI() string {
+func (p *BCryptPassword) String() string {
 	return fmt.Sprintf("bcrypt:///?digest=%s&salt=%s", p.digest, p.salt)
 }

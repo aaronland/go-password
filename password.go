@@ -10,7 +10,7 @@ type Password interface {
 	Digest() string
 	Salt() string
 	Compare(string) error
-	URI() string
+	String() string
 }
 
 type PasswordInitializationFunc func(ctx context.Context, uri string) (Password, error)
