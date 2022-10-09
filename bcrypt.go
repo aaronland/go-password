@@ -1,8 +1,11 @@
 package password
 
 import (
+	"context"
+	"fmt"
 	"crypto/sha512"
 	"github.com/patrickmn/go-hmaccrypt"
+	"net/url"
 )
 
 type BCryptPassword struct {
@@ -10,6 +13,30 @@ type BCryptPassword struct {
 	crypt  *hmaccrypt.HmacCrypt
 	digest string
 	salt   string
+}
+
+func init() {
+	ctx := context.Background()
+	RegisterPassword(ctx, "bcrypt", NewBCryptPassword)
+}
+
+func NewBCryptPassword(ctx context.Context, uri string) (Password, error) {
+
+	u, err := url.Parse(uri)
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed to parse URI, %w", err)
+	}
+
+	pswd := u.Host
+	
+	salt, err := NewSalt()
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create new salt, %w", err)
+	}
+
+	return NewBCryptPasswordWithSalt(pswd, salt)
 }
 
 func NewBCryptPasswordFromDigest(digest string, salt string) (Password, error) {
@@ -24,17 +51,6 @@ func NewBCryptPasswordFromDigest(digest string, salt string) (Password, error) {
 	}
 
 	return &p, nil
-}
-
-func NewBCryptPassword(pswd string) (Password, error) {
-
-	salt, err := NewSalt()
-
-	if err != nil {
-		return nil, err
-	}
-
-	return NewBCryptPasswordWithSalt(pswd, salt)
 }
 
 func NewBCryptPasswordWithSalt(pswd string, salt string) (Password, error) {
@@ -67,6 +83,5 @@ func (p *BCryptPassword) Salt() string {
 }
 
 func (p *BCryptPassword) Compare(pswd string) error {
-
 	return p.crypt.BcryptCompare([]byte(p.digest), []byte(pswd))
 }
