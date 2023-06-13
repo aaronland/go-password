@@ -3,10 +3,11 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"golang.org/x/crypto/ssh/terminal"
 	"log"
 	"strings"
 	"syscall"
+
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 type GetPasswordOptions struct {

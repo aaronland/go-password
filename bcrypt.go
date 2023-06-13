@@ -4,9 +4,10 @@ import (
 	"context"
 	"crypto/sha512"
 	"fmt"
-	"github.com/patrickmn/go-hmaccrypt"
 	_ "log"
 	"net/url"
+
+	"github.com/patrickmn/go-hmaccrypt"
 )
 
 type BCryptPassword struct {
