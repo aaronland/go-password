@@ -6,10 +6,14 @@ package password
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
+	"regexp"
 
 	"github.com/alexedwards/argon2id"
 )
+
+var re_hash = regexp.MustCompile(`^\$argon2id\$v=(\d+)\$m=(\d+),t=(\d+),p=(.*)$`)
 
 type Argon2idPassword struct {
 	Password
@@ -39,19 +43,28 @@ func NewArgon2idPassword(ctx context.Context, uri string) (Password, error) {
 
 		// To do: Allow custom params here...
 
-		d, err := argon2id.CreateHash(pswd, params)
+		h, err := argon2id.CreateHash(pswd, params)
 
 		if err != nil {
 			return nil, fmt.Errorf("Failed to create hash, %w", err)
 		}
 
-		digest = d
+		if !re_hash.MatchString(h) {
+			return nil, fmt.Errorf("Failed to validate hash string, %s", h)
+		}
+
+		m := re_hash.FindStringSubmatch(h)
+		digest = m[4]
+
+		slog.Info("D1", "hash", h, "digest", digest)
 
 	} else {
 
 		q := u.Query()
 
 		q_digest := q.Get("digest")
+
+		slog.Info("D2", "digest", q_digest)
 
 		if q_digest == "" {
 			return nil, fmt.Errorf("Missing ?digest= parameter, %w", err)
