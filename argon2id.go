@@ -6,7 +6,6 @@ package password
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"regexp"
 
@@ -17,7 +16,7 @@ var re_hash = regexp.MustCompile(`^\$argon2id\$v=(\d+)\$m=(\d+),t=(\d+),p=(.*)$`
 
 type Argon2idPassword struct {
 	Password
-	digest string
+	hash string
 }
 
 func init() {
@@ -33,7 +32,7 @@ func NewArgon2idPassword(ctx context.Context, uri string) (Password, error) {
 		return nil, fmt.Errorf("Failed to parse URI, %w", err)
 	}
 
-	var digest string
+	var hash string
 
 	if u.Host != "" {
 
@@ -49,54 +48,46 @@ func NewArgon2idPassword(ctx context.Context, uri string) (Password, error) {
 			return nil, fmt.Errorf("Failed to create hash, %w", err)
 		}
 
-		if !re_hash.MatchString(h) {
-			return nil, fmt.Errorf("Failed to validate hash string, %s", h)
-		}
-
-		m := re_hash.FindStringSubmatch(h)
-		digest = m[4]
-
-		slog.Info("D1", "hash", h, "digest", digest)
+		hash = h
 
 	} else {
 
 		q := u.Query()
 
-		q_digest := q.Get("digest")
+		q_hash := q.Get("hash")
 
-		slog.Info("D2", "digest", q_digest)
-
-		if q_digest == "" {
-			return nil, fmt.Errorf("Missing ?digest= parameter, %w", err)
+		if q_hash == "" {
+			return nil, fmt.Errorf("Missing ?hash= parameter, %w", err)
 		}
 
-		_, _, _, err := argon2id.DecodeHash(q_digest)
+		_, _, _, err := argon2id.DecodeHash(q_hash)
 
 		if err != nil {
-			return nil, fmt.Errorf("Failed to decode ?digest= parameter, %w", err)
+			return nil, fmt.Errorf("Failed to decode ?hash= parameter, %w", err)
 		}
 
-		digest = q_digest
+		hash = q_hash
 	}
 
 	p := &Argon2idPassword{
-		digest: digest,
+		hash: hash,
 	}
 
 	return p, nil
 }
 
 func (p *Argon2idPassword) Digest() string {
-	return p.digest
+	return p.hash
 }
 
 func (p *Argon2idPassword) Salt() string {
+	// To do: This can be derived using re_hash (above)
 	return ""
 }
 
 func (p *Argon2idPassword) Compare(pswd string) error {
 
-	ok, err := argon2id.ComparePasswordAndHash(pswd, p.digest)
+	ok, err := argon2id.ComparePasswordAndHash(pswd, p.hash)
 
 	if err != nil {
 		return fmt.Errorf("Failed to compare hash, %w", err)
