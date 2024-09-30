@@ -3,6 +3,7 @@ package password
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"testing"
 )
 
@@ -41,12 +42,12 @@ func TestArgon2idPasswordFromDigest(t *testing.T) {
 		t.Fatalf("Passwords do not compare, %v", err)
 	}
 
-	digest_uri := fmt.Sprintf("argon2id://?digest=%s", p.Digest())
+	hash_uri := fmt.Sprintf("argon2id://?hash=%s", url.QueryEscape(p.Digest()))
 
-	p2, err := NewPassword(ctx, digest_uri)
+	p2, err := NewPassword(ctx, hash_uri)
 
 	if err != nil {
-		t.Fatalf("Failed to create password from digest, %v", err)
+		t.Fatalf("Failed to create password from hash URI, %v", err)
 	}
 
 	err = p2.Compare("s33kret")
