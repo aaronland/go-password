@@ -3,10 +3,10 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 	"log"
-	"strings"
 	"syscall"
+	"unicode/utf8"
 )
 
 type GetPasswordOptions struct {
@@ -36,35 +36,37 @@ func GetPassword(opts *GetPasswordOptions) (string, error) {
 
 		fmt.Print("Enter Password: ")
 
-		pswd1, err := terminal.ReadPassword(int(syscall.Stdin))
+		pswd1, err := term.ReadPassword(int(syscall.Stdin))
 
 		if err != nil {
 			return "", err
 		}
 
+		fmt.Println("")
+
 		if opts.Repeat {
 
-			fmt.Println("")
 			fmt.Print("Enter Password (again): ")
 
-			pswd2, err := terminal.ReadPassword(int(syscall.Stdin))
+			pswd2, err := term.ReadPassword(int(syscall.Stdin))
 
 			if err != nil {
-				return "", nil
+				return "", err
 			}
 
 			fmt.Println("")
 
-			if strings.Compare(string(pswd1), string(pswd2)) != 0 {
+			if string(pswd1) != string(pswd2) {
 				log.Println("Passwords do not match")
 				continue
 			}
 		}
 
+		// The password is used exactly as typed (no whitespace trimming)
+		// and its length is counted in characters, not bytes.
 		password = string(pswd1)
-		password = strings.TrimSpace(password)
 
-		if len(password) < opts.MinLength {
+		if utf8.RuneCountInString(password) < opts.MinLength {
 			log.Println("Password is too short")
 			password = ""
 			continue
