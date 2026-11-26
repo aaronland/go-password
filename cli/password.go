@@ -1,3 +1,4 @@
+// Package cli provides helpers for reading passwords from a terminal.
 package cli
 
 import (
@@ -9,11 +10,15 @@ import (
 	"unicode/utf8"
 )
 
+// GetPasswordOptions configures GetPassword.
 type GetPasswordOptions struct {
+	// MinLength is the minimum password length in characters. It must be greater than zero.
 	MinLength int
-	Repeat    bool
+	// Repeat requires the password to be entered twice, with both entries matching.
+	Repeat bool
 }
 
+// DefaultGetPasswordOptions returns options requiring a repeated password of at least 8 characters.
 func DefaultGetPasswordOptions() *GetPasswordOptions {
 
 	opts := GetPasswordOptions{
@@ -24,6 +29,9 @@ func DefaultGetPasswordOptions() *GetPasswordOptions {
 	return &opts
 }
 
+// GetPassword prompts for a password on the terminal without echoing it, re-prompting until the
+// entries match (if opts.Repeat is set) and meet opts.MinLength. The password is returned exactly
+// as typed. An error is returned if the terminal can not be read.
 func GetPassword(opts *GetPasswordOptions) (string, error) {
 
 	if opts.MinLength <= 0 {

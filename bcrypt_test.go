@@ -7,6 +7,66 @@ import (
 	"testing"
 )
 
+func TestBcryptPassword(t *testing.T) {
+
+	ctx := context.Background()
+	uri := "bcrypt://s33kret99"
+
+	p, err := NewPassword(ctx, uri)
+
+	if err != nil {
+		t.Fatalf("Failed to create new password, %v", err)
+	}
+
+	err = p.Compare("s33kret99")
+
+	if err != nil {
+		t.Fatalf("Passwords do not compare, %v", err)
+	}
+}
+
+func TestBcryptPasswordFromDigest(t *testing.T) {
+
+	ctx := context.Background()
+	uri := "bcrypt://s33kret99"
+
+	p, err := NewPassword(ctx, uri)
+
+	if err != nil {
+		t.Fatalf("Failed to create new password, %v", err)
+	}
+
+	err = p.Compare("s33kret99")
+
+	if err != nil {
+		t.Fatalf("Passwords do not compare, %v", err)
+	}
+
+	digest_uri := fmt.Sprintf("bcrypt://?digest=%s&salt=%s", p.Digest(), p.Salt())
+
+	p2, err := NewPassword(ctx, digest_uri)
+
+	if err != nil {
+		t.Fatalf("Failed to create password from digest, %v", err)
+	}
+
+	err = p2.Compare("s33kret99")
+
+	if err != nil {
+		t.Fatalf("Passwords (p2) do not compare, %v", err)
+	}
+
+	p3, err := NewBCryptPasswordFromDigest(p.Digest(), p.Salt())
+
+	if err != nil {
+		t.Fatalf("Failed to create password from digest (p3), %v", err)
+	}
+
+	if err := p3.Compare("s33kret99"); err != nil {
+		t.Fatalf("Passwords (p3) do not compare, %v", err)
+	}
+}
+
 func TestBCrypt(t *testing.T) {
 
 	ctx := context.Background()
@@ -110,10 +170,10 @@ func TestBCryptInvalid(t *testing.T) {
 	ctx := context.Background()
 
 	for _, uri := range []string{
-		"bcrypt://abcd/efghijkl", // would be truncated
-		"bcrypt://short",         // too short
-		"bcrypt:///?digest=abc",  // digest without salt
-		"bcrypt:///?password=longenough&cost=99",
+		"bcrypt://abcd/efghijkl",                 // would be truncated
+		"bcrypt://short",                         // too short
+		"bcrypt:///?digest=abc",                  // digest without salt
+		"bcrypt:///?password=longenough&cost=99", // invalid cost
 	} {
 		if _, err := NewPassword(ctx, uri); err == nil {
 			t.Fatalf("Expected error for %s", uri)

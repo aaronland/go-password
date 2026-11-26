@@ -13,3 +13,18 @@ bcrypt:///?digest=DIGEST&salt=SALT[&pepper=SECRET]
 * `cost` – bcrypt cost, default 12.
 
 `String()` returns `digest` and `salt` only; treat it as sensitive and avoid logging it.
+
+## argon2id
+
+```
+argon2id:///?password=PLAINTEXT
+argon2id:///?hash=HASH
+```
+
+* `password` – URL-escaped plain text (minimum 8 characters); `argon2id://PLAINTEXT` is accepted under the same restrictions as bcrypt.
+* `hash` – an existing, URL-escaped argon2id hash. The salt is encoded in the hash.
+* `String()` returns the `hash` only.
+
+## Schemes
+
+`password.Schemes()` returns the registered schemes (e.g. `bcrypt://`, `argon2id://`). `Passwords()` is a deprecated alias.

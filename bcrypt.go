@@ -4,18 +4,24 @@ import (
 	"context"
 	"crypto/sha512"
 	"errors"
-	"github.com/patrickmn/go-hmaccrypt"
-	"golang.org/x/crypto/bcrypt"
+	"fmt"
 	"net/url"
 	"strconv"
 	"unicode/utf8"
+
+	"github.com/patrickmn/go-hmaccrypt"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // DefaultBCryptCost is the bcrypt work factor used when no "cost" parameter is given.
 const DefaultBCryptCost = 12
 
-const minPasswordLength = 8
+// MaxBCryptCost is the highest bcrypt cost accepted, whether for new hashes or digests that
+// are loaded, to stop an untrusted digest from forcing excessive CPU use in Compare.
+const MaxBCryptCost = 16
 
+// BCryptPassword is a Password that stores bcrypt(HMAC-SHA512(password, key)) digests. The
+// HMAC pre-hash avoids bcrypt's 72 byte input limit.
 type BCryptPassword struct {
 	crypt  *hmaccrypt.HmacCrypt
 	digest string
@@ -35,7 +41,7 @@ func init() {
 // NewBCryptPassword creates a Password from a URI of the form:
 //
 //	bcrypt:///?password=PLAINTEXT[&salt=SALT][&pepper=SECRET][&cost=N]
-//	bcrypt:///?digest=DIGEST&salt=SALT
+//	bcrypt:///?digest=DIGEST&salt=SALT[&pepper=SECRET]
 //
 // The plain text may also be given as the URI host (bcrypt://PLAINTEXT) but only
 // if it contains no characters that are significant in a URI; values that would
@@ -49,7 +55,7 @@ func init() {
 // a digest is loaded.
 func NewBCryptPassword(ctx context.Context, uri string) (Password, error) {
 
-	u, err := url.Parse(uri)
+	u, err := parseURI(uri)
 
 	if err != nil {
 		return nil, err
@@ -57,15 +63,10 @@ func NewBCryptPassword(ctx context.Context, uri string) (Password, error) {
 
 	q := u.Query()
 
-	pswd := q.Get("password")
+	pswd, err := plaintextFromURL(u, "digest", "salt", "pepper", "cost")
 
-	if pswd == "" {
-
-		if u.User != nil || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
-			return nil, errors.New("Password contains characters that are not valid in a URI host, use the 'password' query parameter")
-		}
-
-		pswd = u.Host
+	if err != nil {
+		return nil, err
 	}
 
 	digest := q.Get("digest")
@@ -79,11 +80,7 @@ func NewBCryptPassword(ctx context.Context, uri string) (Password, error) {
 		cost, err = strconv.Atoi(q.Get("cost"))
 
 		if err != nil {
-			return nil, err
-		}
-
-		if cost < bcrypt.MinCost || cost > bcrypt.MaxCost {
-			return nil, errors.New("Invalid bcrypt cost")
+			return nil, fmt.Errorf("Invalid bcrypt cost, %w", err)
 		}
 	}
 
@@ -97,11 +94,37 @@ func NewBCryptPassword(ctx context.Context, uri string) (Password, error) {
 		s, err := NewSalt()
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Failed to create new salt, %w", err)
 		}
 
 		salt = s
 	}
+
+	return newBCryptPassword(pswd, digest, salt, pepper, cost)
+}
+
+// NewBCryptPasswordFromDigest returns a Password for an existing bcrypt 'digest' that was
+// created using 'salt' as its HMAC key.
+func NewBCryptPasswordFromDigest(digest string, salt string) (Password, error) {
+
+	if digest == "" || salt == "" {
+		return nil, errors.New("A digest and its salt are required")
+	}
+
+	return newBCryptPassword("", digest, salt, "", DefaultBCryptCost)
+}
+
+// NewBCryptPasswordWithSalt returns a new Password for the plain text 'pswd' using 'salt' as its HMAC key.
+func NewBCryptPasswordWithSalt(pswd string, salt string) (Password, error) {
+
+	if salt == "" {
+		return nil, errors.New("A salt is required")
+	}
+
+	return newBCryptPassword(pswd, "", salt, "", DefaultBCryptCost)
+}
+
+func newBCryptPassword(pswd string, digest string, salt string, pepper string, cost int) (Password, error) {
 
 	key := pepper
 
@@ -113,17 +136,33 @@ func NewBCryptPassword(ctx context.Context, uri string) (Password, error) {
 
 	if digest == "" {
 
-		if utf8.RuneCountInString(pswd) < minPasswordLength {
-			return nil, errors.New("Password too short")
+		if cost < bcrypt.MinCost || cost > MaxBCryptCost {
+			return nil, errors.New("Invalid bcrypt cost")
+		}
+
+		if utf8.RuneCountInString(pswd) < MinPasswordLength {
+			return nil, errPasswordTooShort()
 		}
 
 		d, err := crypt.Bcrypt([]byte(pswd), cost)
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Failed to create digest, %w", err)
 		}
 
 		digest = string(d)
+
+	} else {
+
+		c, err := bcrypt.Cost([]byte(digest))
+
+		if err != nil {
+			return nil, fmt.Errorf("Invalid bcrypt digest, %w", err)
+		}
+
+		if c < bcrypt.MinCost || c > MaxBCryptCost {
+			return nil, errors.New("Invalid bcrypt cost in digest")
+		}
 	}
 
 	p := BCryptPassword{
@@ -135,16 +174,18 @@ func NewBCryptPassword(ctx context.Context, uri string) (Password, error) {
 	return &p, nil
 }
 
+// Digest returns the bcrypt digest.
 func (p *BCryptPassword) Digest() string {
 	return p.digest
 }
 
+// Salt returns the salt used as (or alongside) the HMAC key. It is not a secret.
 func (p *BCryptPassword) Salt() string {
 	return p.salt
 }
 
+// Compare returns nil if 'pswd' matches the digest and an error otherwise.
 func (p *BCryptPassword) Compare(pswd string) error {
-
 	return p.crypt.BcryptCompare([]byte(p.digest), []byte(pswd))
 }
 
